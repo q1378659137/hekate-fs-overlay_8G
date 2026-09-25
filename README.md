@@ -1,5 +1,8 @@
 # hekate - Nyx
 
+用法：make ram8gb
+
+
 ![Image of Hekate](https://user-images.githubusercontent.com/3665130/60391760-bc1e8c00-9afe-11e9-8b7a-b065873081b2.png)
 
 
@@ -17,6 +20,8 @@ instructions are available in [`patches/emummc`](patches/emummc).
 
 
 - [Features](#features)
+- [Building](#building)
+  * [8GB RAM modded consoles](#8gb-ram-modded-consoles)
 - [Bootloader folders and files](#bootloader-folders-and-files)
 - [Bootloader configuration](#bootloader-configuration)
   * [hekate global Configuration keys/values](#hekate-global-configuration-keysvalues-when-entry-is-config)
@@ -24,6 +29,73 @@ instructions are available in [`patches/emummc`](patches/emummc).
   * [Boot entry key/value combinations for Exosphère](#boot-entry-keyvalue-combinations-for-exosphère)
   * [Payload storage](#payload-storage)
   * [Nyx Configuration keys/values](#nyx-configuration-keysvalues-nyxini)
+
+
+## Building
+
+Normal build (4GB consoles):
+
+```sh
+make
+```
+
+8GB RAM modded consoles:
+
+```sh
+make ram8gb        # same as: make RAM8GB=1
+```
+
+The 8GB build is identical to the normal one except for the forced DRAM config
+bit, and it keeps every fork feature, including `fsoverlay=`. It is written to
+`output/hekate_ram8GB.bin`.
+
+### 8GB RAM modded consoles
+
+Upstream hekate ships a separate `hekate_ctcaer_x.x.x_ram8GB.bin` payload for
+consoles that were hard-modded with 8GB of LPDDR4X, because the forced DRAM
+config must never be given to a normal 4GB unit.
+
+That upstream payload cannot be combined with this fork. It is built from
+unmodified upstream sources, so it has no `fsoverlay=` key and an overlay
+request is silently ignored. On top of that, the reserved config travels
+*inside the running payload*: at boot hekate copies the reserved flags of the
+running payload into `bootloader/update.bin`, so booting an upstream 8GB
+payload and this fork in turn makes the two overwrite each other's DRAM config.
+
+This fork therefore builds its own 8GB payload, so a single file provides both
+the forced 8GB DRAM config and `fsoverlay=`:
+
+```sh
+make ram8gb
+```
+
+Install `output/hekate_ram8GB.bin` as the **first** payload that runs:
+
+- modchip / dongle: use it as `payload.bin`;
+- RCM: inject it directly;
+- or delete `bootloader/update.bin` once and boot it, so hekate recreates
+  `update.bin` from this payload.
+
+Do not mix it with `hekate_ctcaer_x.x.x_ram8GB.bin`; keep this payload as the
+one that is injected or chainloaded. Also make sure `bootloader/update.bin` is
+not a *newer* hekate from another source, or hekate will chainload that one
+instead and `fsoverlay=` is never applied.
+
+While running, Nyx shows a `*` next to its version, which confirms that the
+forced 8GB config is in effect.
+
+To let HOS itself use all 8GB, add `memmode=1` to the boot entry. This needs an
+Exosphere/Atmosphere with auto memory size support
+([Atmosphere-NX/Atmosphere#2748](https://github.com/Atmosphere-NX/Atmosphere/pull/2748)):
+
+```ini
+[CFW - emuMMC 8G]
+pkg3=atmosphere/package3
+fsoverlay=atmosphere/fs_overlays/fs_codecvt_unpacked.kip
+emummcforce=1
+memmode=1
+```
+
 
 
 

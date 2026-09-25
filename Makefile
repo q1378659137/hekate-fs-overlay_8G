@@ -64,6 +64,19 @@ CUSTOMDEFINES += -DBDK_MALLOC_NO_DEFRAG -DBDK_EMUMMC_ENABLE
 CUSTOMDEFINES += -DBDK_WATCHDOG_FIQ_ENABLE -DBDK_RESTART_BL_ON_WDT
 CUSTOMDEFINES += -DGFX_INC=$(GFX_INC) -DFFCFG_INC=$(FFCFG_INC)
 
+# Force the 8GB DRAM ID (T210: 7, T210B01: 28) in the payload itself.
+# This is for consoles that were hard-modded with 8GB of LPDDR4X ONLY.
+# A normal 4GB console must never be booted with such a payload.
+# The forced flag also keeps every fork feature, in particular fsoverlay=.
+# Build with: make RAM8GB=1   (or: make ram8gb)
+# Output:     output/hekate_ram8GB.bin
+ifeq ($(RAM8GB),1)
+CUSTOMDEFINES += -DFORCE_8GB_DRAM_ID
+OUTPUT_NAME := $(TARGET)_ram8GB
+else
+OUTPUT_NAME := $(TARGET)
+endif
+
 #CUSTOMDEFINES += -DDEBUG
 
 # UART Logging: Max baudrate 12.5M.
@@ -96,21 +109,29 @@ endif
 
 ################################################################################
 
-.PHONY: all clean $(LDRDIR) $(TOOLS) $(NYXDIR) $(MODULEDIRS)
+.PHONY: all clean ram8gb $(LDRDIR) $(TOOLS) $(NYXDIR) $(MODULEDIRS)
 
 all: $(TARGET).bin $(LDRDIR)
-	@printf ICTC49 >> $(OUTPUTDIR)/$(TARGET).bin
+	@printf ICTC49 >> $(OUTPUTDIR)/$(OUTPUT_NAME).bin
 	@echo "--------------------------------------"
-	@echo "$(TARGET) size:"
+	@echo "$(OUTPUT_NAME).bin:"
 	@echo -n "Uncompr:  "
-	$(eval BIN_SIZE = $(shell wc -c < $(OUTPUTDIR)/$(TARGET)_unc.bin))
+	$(eval BIN_SIZE = $(shell wc -c < $(OUTPUTDIR)/$(OUTPUT_NAME)_unc.bin))
 	@echo $(BIN_SIZE)" Bytes"
 	@if [ ${BIN_SIZE} -gt 140288 ]; then echo "\e[1;33mUncompr size exceeds limit!\e[0m"; fi
 	@echo -n "Payload:  "
-	$(eval BIN_SIZE = $(shell wc -c < $(OUTPUTDIR)/$(TARGET).bin))
+	$(eval BIN_SIZE = $(shell wc -c < $(OUTPUTDIR)/$(OUTPUT_NAME).bin))
 	@echo $(BIN_SIZE)" Bytes"
 	@if [ ${BIN_SIZE} -gt 126296 ]; then echo "\e[1;33mPayload size exceeds limit!\e[0m"; fi
+ifeq ($(RAM8GB),1)
+	@echo "\e[1;33m*** Forced 8GB DRAM ID: 8GB RAM-modded consoles ONLY! ***\e[0m"
+	@echo "\e[1;33m*** Nyx will show a '*' next to its version once running. ***\e[0m"
+endif
 	@echo "--------------------------------------"
+
+# Convenience wrapper: full build with the forced 8GB DRAM config.
+ram8gb:
+	@$(MAKE) --no-print-directory all RAM8GB=1
 
 clean: $(TOOLS)
 	@rm -rf $(BUILDDIR)
@@ -126,14 +147,14 @@ $(NYXDIR): $(BUILDTDIR)/$(TARGET).elf $(MODULEDIRS)
 
 $(LDRDIR): $(TARGET).bin $(TOOLS) $(NYXDIR) $(MODULEDIRS)
 	@$(TOOLSLZ)/lz77 $(OUTPUTDIR)/$(TARGET).bin
-	@mv $(OUTPUTDIR)/$(TARGET).bin $(OUTPUTDIR)/$(TARGET)_unc.bin
+	@mv $(OUTPUTDIR)/$(TARGET).bin $(OUTPUTDIR)/$(OUTPUT_NAME)_unc.bin
 	@mv $(OUTPUTDIR)/$(TARGET).bin.00.lz payload_00
 	@mv $(OUTPUTDIR)/$(TARGET).bin.01.lz payload_01
 	@$(TOOLSB2C)/bin2c payload_00 > $(LDRDIR)/payload_00.h
 	@$(TOOLSB2C)/bin2c payload_01 > $(LDRDIR)/payload_01.h
 	@rm payload_00
 	@rm payload_01
-	@$(MAKE) --no-print-directory -C $@ $(MAKECMDGOALS) -$(MAKEFLAGS) PAYLOAD_NAME=$(TARGET)
+	@$(MAKE) --no-print-directory -C $@ $(MAKECMDGOALS) -$(MAKEFLAGS) PAYLOAD_NAME=$(OUTPUT_NAME) RAM8GB=$(RAM8GB)
 
 $(TOOLS):
 	@$(MAKE) --no-print-directory -C $@ $(MAKECMDGOALS) -$(MAKEFLAGS)

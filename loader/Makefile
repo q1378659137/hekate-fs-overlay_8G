@@ -29,6 +29,13 @@ OBJS = $(addprefix $(BUILDDIR)/, \
 CUSTOMDEFINES := -DBL_MAGIC=$(IPL_MAGIC)
 CUSTOMDEFINES += -DBL_VER_MJ=$(BLVERSION_MAJOR) -DBL_VER_MN=$(BLVERSION_MINOR) -DBL_VER_HF=$(BLVERSION_HOTFX) -DBL_VER_RL=$(BLVERSION_REL)
 
+# Force the 8GB DRAM ID. This is the payload that gets injected/chainloaded,
+# so its reserved config is the one that ends up in the running image.
+# Must be kept in sync with the top-level Makefile. See there for details.
+ifeq ($(RAM8GB),1)
+CUSTOMDEFINES += -DFORCE_8GB_DRAM_ID
+endif
+
 #TODO: Considering reinstating some of these when pointer warnings have been fixed.
 WARNINGS := -Wall -Wsign-compare -Wno-array-bounds -Wno-stringop-overflow
 
